@@ -11,7 +11,6 @@ controller.spawn({
 });
 
 controller.hears('test','message_received', function(bot, message) {
-  console.log(message);
   bot.reply(message,'I heard a test');
 });
 

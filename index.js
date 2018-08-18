@@ -27,17 +27,36 @@ module.exports = function(Botkit, config) {
 
     // send a message
     bot.send = function(message, cb) {
-      console.log(message);
-      cb();
+      if (message.to) {
+        bot.zulip.then(z => {
+          z.messages.send(message).then(res => {
+            if (res.result === 'error') {
+              console.error(res);
+            }
+
+            cb();
+          });
+        });
+      } else {
+        console.warn('Cannot send a message without a recipient.');
+        console.warn(message);
+        cb();
+      }
     };
 
     // construct a reply
     bot.reply = function (src, resp, cb) {
-      console.log('Reply src');
-      console.log(src);
-      console.log('Reply resp');
-      console.log(resp);
-      bot.say(resp, cb);
+      if (typeof(resp) === 'string') {
+        resp = {
+          text: resp
+        };
+      }
+
+      resp.type = src.type;
+      resp.user = src.user;
+      resp.channel = src.channel;
+
+      bot.say(resp, cb || (() => {}));
     };
 
     // mechanism to look for ongoing conversations
@@ -71,10 +90,17 @@ module.exports = function(Botkit, config) {
               var maxEventId = _.reduce(eventsRes.events, (max, event) => {
                 switch (event.type) {
                   case 'message':
-                    controller.ingest(bot, event.message);
+                    // Only ingest messages from other users
+                    if (event.message.sender_email.trim().toLowerCase() != config.username.trim().toLowerCase()) {
+                      controller.ingest(bot, event.message, event.id);
+                    }
+                    break;
+                  case 'heartbeat':
+                    // Ignore heartbeats
                     break;
                   default:
-                    console.log(event);
+                    // Received an unexpected event
+                    console.warn(event);
                 }
 
                 if (event.id > max) {
@@ -94,6 +120,33 @@ module.exports = function(Botkit, config) {
     });
     
     return bot;
+  });
+
+  controller.middleware.normalize.use(function (bot, message, next) {
+    if (message.raw_message.type === 'stream') {
+      message.type = 'message_received';
+      message.text = message.raw_message.content;
+      message.user = message.raw_message.sender_email;
+      message.channel = JSON.stringify({
+        stream: message.raw_message.display_recipient,
+        subject: message.raw_message.subject
+      });
+    }
+    next();
+  });
+
+  controller.middleware.format.use(function(bot, message, platformMessage, next) {
+    if (message.type === 'message_received') {
+      var channelParts = JSON.parse(message.channel);
+
+      platformMessage.type = 'stream';
+      platformMessage.to = channelParts.stream;
+      platformMessage.subject = channelParts.subject;
+      platformMessage.content = message.text;
+    } else {
+      platformMessage = message;
+    }
+    next();
   });
 
   return controller;
