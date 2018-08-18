@@ -1,0 +1,27 @@
+{
+  "name": "botkit-zulip",
+  "version": "0.1.0",
+  "description": "BotKit Zulip connector",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leomchan/botkit-zulip.git"
+  },
+  "keywords": [
+    "zulip",
+    "botkit"
+  ],
+  "author": "Leo Chan",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/leomchan/botkit-zulip/issues"
+  },
+  "homepage": "https://github.com/leomchan/botkit-zulip#readme",
+  "dependencies": {
+    "botkit": "^0.6.16",
+    "zulip-js": "^2.0.4"
+  }
+}
