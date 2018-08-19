@@ -15,14 +15,8 @@ module.exports = function(controller) {
     // for example, set variables to be used in the message templates
     // convo.setVar('foo','bar');
     console.log('BEFORE: hello');
-    convo.context.bot.profile.then(p => {
-      convo.setVar('bot', {
-        name: p.full_name
-      });
-
-      // don't forget to call next, or your conversation will never continue.
-      next();
-    });
+    // don't forget to call next, or your conversation will never continue.
+    next();
   });
 
   /* Validators */
