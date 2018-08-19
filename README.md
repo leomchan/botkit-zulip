@@ -42,7 +42,7 @@ Once you have a token, you can set the following environment variable.
 ## Running the test bot
 The testbot is intended for quickly trying out the connector during development. It is not intended as a template for a production bot. It would be preferred to follow the official Botkit [Get Started](https://botkit.ai/getstarted.html) guide and then making the modifications described above in *Creating a BotKit controller*.
 
-To use the bot, create a `.env` file with the following contents:
+To use the bot, create a `.env` file in the project directory with the following contents:
 ```
 BOTKIT_STUDIO_TOKEN=<BotKit Studio token, optional>
 BOTKIT_ZULIP_BOT=bot@example.com
@@ -50,7 +50,7 @@ BOTKIT_ZULIP_API_KEY=<bot api key>
 BOTKIT_ZULIP_SITE=http://localhost:9991
 ```
 
-and then run `node testbot.js`
+and then run `npm run testbot`
 
 If you have `BOTKIT_STUDIO_TOKEN` set, you will also be able to try the starter BotKit Studio scripts that are available to your account. (e.g. *hello*, *goodbye*, *tutorial*, etc.)
 
