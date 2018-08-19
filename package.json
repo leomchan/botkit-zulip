@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "botkit": "^0.6.16",
+    "dotenv": "^6.0.0",
     "eslint": "^5.4.0"
   }
 }

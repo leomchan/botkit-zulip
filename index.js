@@ -1,22 +1,42 @@
 const zulip = require('zulip-js');
 const _ = require('underscore');
 
-module.exports = function(Botkit, config) {
+module.exports = function(Botkit, controllerConfig) {
 
-  var controller = Botkit.core(config);
+  if (!controllerConfig) {
+    controllerConfig = {};
+  }
+  
+  var controller = Botkit.core(controllerConfig);
+
+  function addMissingBotConfigEntries(botConfig) {
+    if (!botConfig.zulip) {
+      botConfig.zulip = {
+        username: process.env.BOTKIT_ZULIP_BOT,
+        apiKey: process.env.BOTKIT_ZULIP_API_KEY,
+        realm: process.env.BOTKIT_ZULIP_SITE || 'http://localhost:9991'  
+      };
+    }
+
+    if (!botConfig.studio_token) {
+      botConfig.studio_token = process.env.BOTKIT_STUDIO_TOKEN || process.env.studio_token;
+    }
+  }
 
   /**
    * Create zulip connection. At some point pass in config as well?
    */
-  function createZulip(config) {
-    return zulip(config || {
-      username: process.env['BOTKIT_ZULIP_BOT'],
-      apiKey: process.env['BOTKIT_ZULIP_API_KEY'],
-      realm: process.env['BOTKIT_ZULIP_SITE'] || 'http://localhost:9991'
-    });
+  function createZulip(botConfig) {
+    return zulip(botConfig.zulip);
   }
    
   controller.defineBot(function(botkit, config) {
+    if (!config) {
+      config = {};
+    }
+
+    addMissingBotConfigEntries(config);
+
     var bot = {
       type: 'zulip',
       botkit: botkit,
@@ -91,7 +111,7 @@ module.exports = function(Botkit, config) {
                 switch (event.type) {
                   case 'message':
                     // Only ingest messages from other users
-                    if (event.message.sender_email.trim().toLowerCase() != config.username.trim().toLowerCase()) {
+                    if (event.message.sender_email.trim().toLowerCase() != config.zulip.username.trim().toLowerCase()) {
                       controller.ingest(bot, event.message, event.id);
                     }
                     break;
@@ -124,7 +144,7 @@ module.exports = function(Botkit, config) {
 
   controller.middleware.normalize.use(function (bot, message, next) {
     if (message.raw_message.type === 'stream') {
-      message.type = 'message_received';
+      message.type = 'ambient';
       message.text = message.raw_message.content;
       message.user = message.raw_message.sender_email;
       message.channel = JSON.stringify({
@@ -136,7 +156,7 @@ module.exports = function(Botkit, config) {
   });
 
   controller.middleware.format.use(function(bot, message, platformMessage, next) {
-    if (message.type === 'message_received') {
+    if (message.type === 'ambient') {
       var channelParts = JSON.parse(message.channel);
 
       platformMessage.type = 'stream';

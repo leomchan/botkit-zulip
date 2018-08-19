@@ -1,17 +1,40 @@
+require('dotenv').config();
 const Botkit = require('botkit');
 
-var controller = require('./index')(Botkit, {
-  studio_token: 'UKbj3BykT1lsalFyW4O75Rm1Iv8IeIrVD8HHyEY3bC0Xwstr9V3BGq6aNq4AeSix'
+var controller = require('./index')(Botkit, {});
+
+controller.spawn({});
+
+if (process.env.studio_token) {
+  controller.on(['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
+    controller.studio.runTrigger(bot, message.text, message.user, message.channel, message).then(convo => {
+      if (!convo) {
+        console.warn('No conversation was matched.');
+      } else {
+        convo.setVar('current_time', new Date());
+      }
+    }).catch(err => {
+      bot.reply(message, 'Error connecting to Botkit Studio.');
+      console.err(err);
+    });
+  });  
+}
+
+controller.hears('test', 'ambient', function(bot, message) {
+  bot.reply(message, 'I heard an ambient test.');
 });
 
-controller.spawn({
-  username: 'applejack-bot@localhost',
-  apiKey: 'JemHHWPRoseS5zuuPnEChdFekQtJSHc1',
-  realm: 'http://localhost:9991'
+controller.hears('test', 'direct_message', function(bot, message) {
+  bot.reply(message, 'I heard a direct test.');
 });
 
-controller.hears('test','message_received', function(bot, message) {
-  bot.reply(message,'I heard a test');
+
+controller.hears('test', 'direct_mention', function(bot, message) {
+  bot.reply(message, 'I heard a direct mention test.');
+});
+
+controller.hears('test', 'mention', function(bot, message) {
+  bot.reply(message, 'I heard a mention test.');
 });
 
 controller.startTicking();
