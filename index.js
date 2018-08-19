@@ -8,6 +8,10 @@ module.exports = function(Botkit, controllerConfig) {
     controllerConfig = {};
   }
 
+  if (!controllerConfig.studio_token) {
+    controllerConfig.studio_token = process.env.BOTKIT_STUDIO_TOKEN || process.env.studio_token;
+  }
+
   var controller = Botkit.core(controllerConfig);
 
   function addMissingBotConfigEntries(botConfig) {
@@ -20,7 +24,7 @@ module.exports = function(Botkit, controllerConfig) {
     }
 
     if (!botConfig.studio_token) {
-      botConfig.studio_token = process.env.BOTKIT_STUDIO_TOKEN || process.env.studio_token;
+      botConfig.studio_token = controllerConfig.studio_token;
     }
   }
 
@@ -198,18 +202,18 @@ module.exports = function(Botkit, controllerConfig) {
   });
 
   controller.middleware.format.use(function(bot, message, platformMessage, next) {
-    if (_.contains(['ambient', 'mention', 'direct_mention'], message.type)) {
-      var channelParts = JSON.parse(message.channel);
-
-      platformMessage.type = 'stream';
-      platformMessage.to = channelParts.stream;
-      platformMessage.subject = channelParts.subject;
-      platformMessage.content = message.text;
-    } else if (message.type === 'direct_message') {
+    var channel = JSON.parse(message.channel);
+    // If the channel is a JSON array, then map to a private message
+    if (Array.isArray(channel)) {
       platformMessage.type = 'private';
       platformMessage.to = message.channel;
       platformMessage.content = message.text;
       platformMessage.subject = '';
+    } else if (channel.stream && channel.subject) {
+      platformMessage.type = 'stream';
+      platformMessage.to = channel.stream;
+      platformMessage.subject = channel.subject;
+      platformMessage.content = message.text;
     } else {
       console.warn('Unable to format message');
       console.warn(message);

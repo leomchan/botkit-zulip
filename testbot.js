@@ -16,10 +16,16 @@ if (controller.config.studio_token) {
         convo.setVar('current_time', new Date());
       }
     }).catch(err => {
-      bot.reply(message, 'Error connecting to Botkit Studio.');
       console.err(err);
+      bot.reply(message, 'Error connecting to Botkit Studio.');
     });
   });  
+
+  var normalizedPath = require('path').join(__dirname, 'skills');
+  require('fs').readdirSync(normalizedPath).forEach(function(file) {
+    require('./skills/' + file)(controller);
+  });
+
 }
 
 controller.hears('test', 'ambient', function(bot, message) {
@@ -41,4 +47,6 @@ controller.hears('test', 'mention', function(bot, message) {
 
 
 controller.startTicking();
+
+
 
