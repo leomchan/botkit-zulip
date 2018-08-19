@@ -139,6 +139,10 @@ module.exports = function(Botkit, controllerConfig) {
               }, lastEventId);
 
               return retrieveEvents(maxEventId);
+            }).catch(err => {
+              console.warn('Failed to retrieve events.');
+              console.log(err);
+              return retrieveEvents(lastEventId);
             });
           }
 
