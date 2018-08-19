@@ -1,11 +1,13 @@
 require('dotenv').config();
 const Botkit = require('botkit');
 
+// In a production bot, this should be:
+// var controller = require('botkit-zulip')(Botkit, {});
 var controller = require('./index')(Botkit, {});
 
 controller.spawn({});
 
-if (process.env.studio_token) {
+if (controller.config.studio_token) {
   controller.on(['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
     controller.studio.runTrigger(bot, message.text, message.user, message.channel, message).then(convo => {
       if (!convo) {
@@ -36,6 +38,7 @@ controller.hears('test', 'direct_mention', function(bot, message) {
 controller.hears('test', 'mention', function(bot, message) {
   bot.reply(message, 'I heard a mention test.');
 });
+
 
 controller.startTicking();
 

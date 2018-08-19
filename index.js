@@ -1,12 +1,13 @@
 const zulip = require('zulip-js');
 const _ = require('underscore');
+const escapeStringRegexp = require('escape-string-regexp');
 
 module.exports = function(Botkit, controllerConfig) {
 
   if (!controllerConfig) {
     controllerConfig = {};
   }
-  
+
   var controller = Botkit.core(controllerConfig);
 
   function addMissingBotConfigEntries(botConfig) {
@@ -37,12 +38,15 @@ module.exports = function(Botkit, controllerConfig) {
 
     addMissingBotConfigEntries(config);
 
+    var botZulip = createZulip(config);
+
     var bot = {
       type: 'zulip',
       botkit: botkit,
       config: config || {},
       utterances: botkit.utterances,
-      zulip: createZulip(config)
+      zulip: botZulip,
+      profile: botZulip.then(z => z.users.me.getProfile())
     };
 
     // send a message
@@ -143,20 +147,48 @@ module.exports = function(Botkit, controllerConfig) {
   });
 
   controller.middleware.normalize.use(function (bot, message, next) {
-    if (message.raw_message.type === 'stream') {
-      message.type = 'ambient';
-      message.text = message.raw_message.content;
-      message.user = message.raw_message.sender_email;
-      message.channel = JSON.stringify({
-        stream: message.raw_message.display_recipient,
-        subject: message.raw_message.subject
-      });
-    }
-    next();
+    bot.profile.then(p => {
+      switch (message.raw_message.type) {
+        case 'stream':
+
+          // Is this a direct mention, mention, or ambient?
+          var escapedMention = escapeStringRegexp('@**' + p.full_name + '**');
+          var escapedDirectMention = '^' + escapedMention;
+          var directMentionRegex = new RegExp(escapedDirectMention);
+          message.text = message.raw_message.content;
+          
+          if (directMentionRegex.test(message.text)) {
+            message.type = 'direct_mention';
+          } else {
+            var mentionRegex = new RegExp(escapedMention);
+            if (mentionRegex.test(message.text)) {
+              message.type = 'mention';
+            } else {
+              message.type = 'ambient';
+            }
+          }
+          
+          message.user = message.raw_message.sender_email;
+  
+          // Map Zulip stream name + topic to a BotKit channel.
+          // Encode as JSON, because there doesn't appear to be too many restriction on what characters
+          // a stream name or topic can contain
+          message.channel = JSON.stringify({
+            stream: message.raw_message.display_recipient,
+            subject: message.raw_message.subject
+          });
+          break;
+  
+        default:
+          console.warn('Unsupported zulip event type %s', message.raw_message.type);
+          console.warn(message.raw_message);
+          break;
+      }  
+    }).then(() => next());
   });
 
   controller.middleware.format.use(function(bot, message, platformMessage, next) {
-    if (message.type === 'ambient') {
+    if (_.contains(['ambient', 'mention', 'direct_mention'], message.type)) {
       var channelParts = JSON.parse(message.channel);
 
       platformMessage.type = 'stream';

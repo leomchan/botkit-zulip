@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/leomchan/botkit-zulip#readme",
   "dependencies": {
+    "escape-string-regexp": "^1.0.5",
     "underscore": "^1.9.1",
     "zulip-js": "^2.0.4"
   },
