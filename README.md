@@ -32,6 +32,13 @@ controller.spawn({
 });
 ```
 
+## BotKit Studio integration
+To use BotKit studio, obtain a BotKit studio token. See the [BotKit Getting Started Guide](https://botkit.ai/docs/readme-studio.html#getting-started) on how to do this.
+
+Once you have a token, you can set the following environment variable.
+
+* `BOTKIT_STUDIO_TOKEN=<BotKit Studio Token>` (optional)
+
 ## Running the test bot
 The testbot is intended for quickly trying out the connector during development. It is not intended as a template for a production bot. It would be preferred to follow the official Botkit [Get Started](https://botkit.ai/getstarted.html) guide and then making the modifications described above in *Creating a BotKit controller*.
 
@@ -44,5 +51,8 @@ BOTKIT_ZULIP_SITE=http://localhost:9991
 ```
 
 and then run `node testbot.js`
+
+If you have `BOTKIT_STUDIO_TOKEN` set, you will also be able to try the starter BotKit Studio scripts that are available to your account. (e.g. *hello*, *goodbye*, *tutorial*, etc.)
+
 
 
