@@ -115,7 +115,7 @@ module.exports = function(Botkit, controllerConfig) {
                 switch (event.type) {
                   case 'message':
                     // Only ingest messages from other users
-                    if (event.message.sender_email.trim().toLowerCase() != config.zulip.username.trim().toLowerCase()) {
+                    if (!event.message.is_me_message && event.message.sender_email.trim().toLowerCase() != config.zulip.username.trim().toLowerCase()) {
                       controller.ingest(bot, event.message, event.id);
                     }
                     break;
@@ -171,14 +171,24 @@ module.exports = function(Botkit, controllerConfig) {
           message.user = message.raw_message.sender_email;
   
           // Map Zulip stream name + topic to a BotKit channel.
-          // Encode as JSON, because there doesn't appear to be too many restriction on what characters
+          // Encode as JSON, because there doesn't appear to be too many restrictions on what characters
           // a stream name or topic can contain
           message.channel = JSON.stringify({
             stream: message.raw_message.display_recipient,
             subject: message.raw_message.subject
           });
           break;
-  
+        
+        case 'private':
+          message.type = 'direct_message';
+          message.user = message.raw_message.sender_email;
+          message.text = message.raw_message.content;
+
+          // For private messages, map sorted json encoding of emails as the channel
+          var emails = _.map(message.raw_message.display_recipient, (recipient) => recipient.email).sort();
+          message.channel = JSON.stringify(emails);
+          break;
+
         default:
           console.warn('Unsupported zulip event type %s', message.raw_message.type);
           console.warn(message.raw_message);
@@ -195,7 +205,14 @@ module.exports = function(Botkit, controllerConfig) {
       platformMessage.to = channelParts.stream;
       platformMessage.subject = channelParts.subject;
       platformMessage.content = message.text;
+    } else if (message.type === 'direct_message') {
+      platformMessage.type = 'private';
+      platformMessage.to = message.channel;
+      platformMessage.content = message.text;
+      platformMessage.subject = '';
     } else {
+      console.warn('Unable to format message');
+      console.warn(message);
       platformMessage = message;
     }
     next();
