@@ -106,51 +106,70 @@ module.exports = function(Botkit, controllerConfig) {
 
     // Listen for messages on subscribed streams
     bot.zulip.then(z => {
-      z.queues.register({event_types: ['message']})
-        .then(res => {
-          
-          function retrieveEvents(lastEventId) {
-            return z.events.retrieve({
-              queue_id: res.queue_id,
-              last_event_id: lastEventId,
-              dont_block: false
-            }).then(eventsRes => {
-              var maxEventId = _.reduce(eventsRes.events, (max, event) => {
-                switch (event.type) {
-                  case 'message':
-                    // Only ingest messages from other users
-                    if (!event.message.is_me_message && event.message.sender_email.trim().toLowerCase() != config.zulip.username.trim().toLowerCase()) {
-                      controller.ingest(bot, event.message, event.id);
-                    }
-                    break;
-                  case 'heartbeat':
-                    // Ignore heartbeats
-                    break;
-                  default:
-                    // Received an unexpected event
-                    console.warn(event);
-                }
 
-                if (event.id > max) {
-                  return event.id;
-                } else {
-                  return max;
-                }
-              }, lastEventId);
+      function retrieveEvents(initialState) {
+        return new Promise((resolve, reject) => {
+          if (initialState && initialState.queue_id) {
+            resolve(initialState);
+          } else {
+            z.queues.register({event_types: ['message']})
+              .then(res => {
+                res.created = Date.now();
+                resolve(res);
+              })
+              .catch(err => reject(err));
+          }
+        }).then(state => {
+          return z.events.retrieve({
+            queue_id: state.queue_id,
+            last_event_id: state.last_event_id,
+            dont_block: false
+          }).then(eventsRes => {
+            var maxEventId = _.reduce(eventsRes.events, (max, event) => {
+              switch (event.type) {
+                case 'message':
+                  // Only ingest messages from other users
+                  if (controller.tickInterval && !event.message.is_me_message && 
+                    event.message.sender_email.trim().toLowerCase() != config.zulip.username.trim().toLowerCase()) {
+                    controller.ingest(bot, event.message, event.id);
+                  }
+                  break;
+                case 'heartbeat':
+                  // Ignore heartbeats
+                  break;
+                default:
+                  // Received an unexpected event
+                  console.warn(event);
+              }
+  
+              if (event.id > max) {
+                return event.id;
+              } else {
+                return max;
+              }
+            }, state.last_event_id);
+  
+            return retrieveEvents({
+              queue_id: state.queue_id,
+              last_event_id: maxEventId,
+              created: state.created
+            });  
+          });
+        }).catch(err => {
+          console.warn('Failed to retrieve events.');
+          console.log(err);
 
-              return retrieveEvents(maxEventId);
-            }).catch(err => {
-              console.warn('Failed to retrieve events.');
-              console.log(err);
-              return retrieveEvents(lastEventId);
-            });
+          if (initialState && initialState.created) {
+            let elapsed = Date.now() - initialState.created;
+            console.warn('Failure occurred after %d ms after queue was created.', elapsed);
           }
 
-          retrieveEvents(res.last_event_id);
+          return retrieveEvents({});
         });
-      console.log('Listening to subscriptions…');
-    });
-    
+      }
+
+    retrieveEvents({});
+
     return bot;
   });
 
