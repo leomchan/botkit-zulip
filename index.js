@@ -168,7 +168,8 @@ module.exports = function(Botkit, controllerConfig) {
         });
       }
 
-    retrieveEvents({});
+      retrieveEvents({});
+    });
 
     return bot;
   });
