@@ -164,7 +164,27 @@ module.exports = function(Botkit, controllerConfig) {
             console.warn('Failure occurred after %d ms after queue was created.', elapsed);
           }
 
-          return retrieveEvents({});
+          if (initialState && initialState.failed) {
+            let timeSinceInitialFailure = Date.now() - initialState.failed;
+            let delay = Math.min(Math.max(5000, Math.round(timeSinceInitialFailure / 5000) * 5000), 30000);
+
+            return new Promise((resolve, reject) => {
+              console.log('Reconnecting after %d ms…', delay);
+              setTimeout(() => {
+                retrieveEvents(initialState).then((x) => {
+                  resolve(x);
+                }).catch(err => {
+                  reject(err);
+                });
+              }, delay);  
+            });
+
+          } else {
+            console.log('Reconnecting immediately…');
+            return retrieveEvents({
+              failed: Date.now(),
+            });
+          }
         });
       }
 
