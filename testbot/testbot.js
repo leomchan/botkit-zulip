@@ -3,7 +3,7 @@ const Botkit = require('botkit');
 
 // In a production bot, this should be:
 // var controller = require('botkit-zulip')(Botkit, {});
-var controller = require('./index')(Botkit, {});
+var controller = require('../index')(Botkit, {});
 
 controller.spawn({});
 

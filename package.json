@@ -1,11 +1,11 @@
 {
   "name": "botkit-zulip",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "BotKit Zulip connector",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "testbot": "node testbot.js"
+    "testbot": "node testbot/testbot.js"
   },
   "repository": {
     "type": "git",
