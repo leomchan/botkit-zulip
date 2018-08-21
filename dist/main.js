@@ -1,5 +1,5 @@
 "use strict";
-const zulip = require('zulip-js');
+const zulip = require("zulip-js");
 const _ = require('underscore');
 const escapeStringRegexp = require('escape-string-regexp');
 const Botkit = require("botkit");

@@ -1,110 +1,45 @@
-const zulip = require('zulip-js');
+import zulip = require('zulip-js');
 const _ = require('underscore');
 const escapeStringRegexp = require('escape-string-regexp');
 import * as Botkit from "botkit";
 
-interface ZulipRegisterQueueParams {
-  apply_markdown?: boolean,
-  client_gravatar?: boolean,
-  event_types?: string[],
-  all_public_streams?: boolean,
-  include_subscribers?: boolean,
-  fetch_event_types?: string[],
-  narrow?: string[]
-}
-
-interface ZulipRegisterQueueResponse {
-  queue_id?: string,
-  last_event_id?: number,
-  result: string
-}
-
-interface ZulipRetrieveEventsParams {
-  queue_id?: string,
-  last_event_id?: number,
-  dont_block?: boolean
-}
-
-interface ZulipEvent {
-  id: number,
-  message: {
-    is_me_message?: boolean,
-    sender_email: string
-  },
-  type: string
-}
-
-interface ZulipRetrieveEventsResponse {
-  events?: ZulipEvent[];
-  result: string;
-}
-
-interface ZulipProfileResponse {
-  email: string,
-  full_name: string,
-  short_name: string,
-  result: string
-}
-
-interface ZulipConnection {
-  readonly messages: {
-    send: (message: ZulipMessage) => Promise<{result: string}>
+namespace zulipbot {
+  export interface Configuration extends Botkit.CoreConfiguration {
+    zulip?: zulip.Configuration;
   }
-
-  readonly queues: {
-    register(params: ZulipRegisterQueueParams): Promise<ZulipRegisterQueueResponse>
+  
+  export interface Message extends Botkit.Message {
+    zulipType: string;
+    type: string;
+    subject?: string;
+    to: string;
+    content: string;
+    sender_email: string;
+    display_recipient: string;
   }
-
-  readonly events: {
-    retrieve(params: ZulipRetrieveEventsParams): Promise<ZulipRetrieveEventsResponse>
+  
+  export interface Bot extends Botkit.Bot<Configuration, Message> {
+    readonly type: string;
+    readonly config: Configuration;
+    readonly zulip: Promise<zulip.Zulip>
   }
+  
+  export interface Controller extends Botkit.CoreController<Configuration, Message, Bot> {
+    readonly utterances: {
+      readonly yes: RegExp;
+      readonly no: RegExp;
+      readonly quit: RegExp;
+    };
 
-  readonly users: {
-    readonly me: {
-      getProfile(): Promise<ZulipProfileResponse>
-    }
+    readonly tasks: {
+      convos: Botkit.Conversation<Message>[]
+    }[];
+    
+    readonly excludedEvents: string[];
   }
 }
 
-interface ZulipConfiguration extends Botkit.CoreConfiguration {
-  zulip?: {
-    username?: string;
-    apiKey?: string;
-    realm?: string;  
-  };
-}
-
-interface ZulipMessage extends Botkit.Message {
-  zulipType: string;
-  type: string;
-  subject?: string;
-  to: string;
-  content: string;
-  sender_email: string;
-  display_recipient: string;
-}
-
-interface ZulipBot extends Botkit.Bot<ZulipConfiguration, ZulipMessage> {
-  readonly type: string;
-  readonly config: ZulipConfiguration;
-  readonly zulip: Promise<ZulipConnection>
-}
-
-interface Utterances {
-  readonly yes: RegExp;
-  readonly no: RegExp;
-  readonly quit: RegExp;
-}
-
-interface ZulipController extends Botkit.CoreController<ZulipConfiguration, ZulipMessage, ZulipBot> {
-  readonly utterances: Utterances;
-  readonly tasks: {
-    convos: Botkit.Conversation<ZulipMessage>[]
-  }[];
-  readonly excludedEvents: string[];
-}
-
-function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): Botkit.Controller<ZulipConfiguration, ZulipMessage, Botkit.Bot<ZulipConfiguration, ZulipMessage>> {
+function zulipbot(botkit: typeof Botkit, controllerConfig: zulipbot.Configuration): Botkit.Controller<zulipbot.Configuration, zulipbot.Message, Botkit.Bot<zulipbot.Configuration, zulipbot.Message>> {
 
   if (!controllerConfig) {
     controllerConfig = {};
@@ -116,7 +51,7 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
 
   var controller = Botkit.core(controllerConfig);
 
-  function addMissingBotConfigEntries(botConfig: ZulipConfiguration) {
+  function addMissingBotConfigEntries(botConfig: zulipbot.Configuration) {
     if (!botConfig.zulip) {
       botConfig.zulip = {
         username: process.env.BOTKIT_ZULIP_BOT,
@@ -133,11 +68,11 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
   /**
    * Create zulip connection. At some point pass in config as well?
    */
-  function createZulip(botConfig: ZulipConfiguration): Promise<ZulipConnection> {
+  function createZulip(botConfig: zulipbot.Configuration): Promise<zulip.Zulip> {
     return zulip(botConfig.zulip);
   }
    
-  controller.defineBot(function(botkit: ZulipController, config: ZulipConfiguration) {
+  controller.defineBot(function(botkit: zulipbot.Controller, config: zulipbot.Configuration) {
     if (!config) {
       config = {};
     }
@@ -146,7 +81,7 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
 
     let zulipConnectionPromise = createZulip(config);
 
-    let bot: ZulipBot = {
+    let bot: zulipbot.Bot = {
       type: 'zulip',
       botkit: botkit,
       config: config || {},
@@ -157,12 +92,12 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
         emails: []
       },
       // Placeholder. CoreBot will redefine say later.
-      say: (message: string | ZulipMessage, cb?: (err: Error, res?: any) => void) => {},
+      say: (message: string | zulipbot.Message, cb?: (err: Error, res?: any) => void) => {},
       // Placeholder. CoreBot will redefine createConversation later.
-      createConversation: (message: ZulipMessage, cb: (err: Error, convo: Botkit.Conversation<ZulipMessage>) => void) => {},
+      createConversation: (message: zulipbot.Message, cb: (err: Error, convo: Botkit.Conversation<zulipbot.Message>) => void) => {},
       // Placeholder. CoreBot will redefine startConversation later.
-      startConversation: (message: ZulipMessage, cb: (err: Error, convo: Botkit.Conversation<ZulipMessage>) => void) => {},
-      send: (message: ZulipMessage, cb?: (err: Error, res?: any) => void) => {
+      startConversation: (message: zulipbot.Message, cb: (err: Error, convo: Botkit.Conversation<zulipbot.Message>) => void) => {},
+      send: (message: zulipbot.Message, cb?: (err: Error, res?: any) => void) => {
         if (message.to) {
           bot.zulip.then(z => {
             z.messages.send(message).then(sendResponse => {
@@ -185,8 +120,8 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
         }  
       },
       // construct a reply
-      reply: (src: ZulipMessage, resp: string | ZulipMessage, cb?: (err: Error, res: any) => void) => {
-        let responseMessage: ZulipMessage;
+      reply: (src: zulipbot.Message, resp: string | zulipbot.Message, cb?: (err: Error, res: any) => void) => {
+        let responseMessage: zulipbot.Message;
         let content: string;
 
         if (typeof(resp) === 'string') {
@@ -211,7 +146,7 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
       },
 
       // mechanism to look for ongoing conversations
-      findConversation: (message: ZulipMessage, cb?: (convo?: Botkit.Conversation<ZulipMessage> | undefined) => void) => {
+      findConversation: (message: zulipbot.Message, cb?: (convo?: Botkit.Conversation<zulipbot.Message> | undefined) => void) => {
         for (var t = 0; t < botkit.tasks.length; t++) {
           for (var c = 0; c < botkit.tasks[t].convos.length; c++) {
             if (
@@ -233,7 +168,7 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
       },
 
       replyWithQuestion: (message, question, cb) => {
-        controller.startConversation(message, (convo: Botkit.Conversation<ZulipMessage>) => {
+        controller.startConversation(message, (convo: Botkit.Conversation<zulipbot.Message>) => {
           convo.ask(question, cb);
         });
       }
@@ -276,7 +211,7 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
             dont_block: false
           }).then(eventsRes => {
             if (eventsRes.result === 'success') {
-              let maxEventId: number = _.reduce(eventsRes.events, (max: number, event: ZulipEvent) => {
+              let maxEventId: number = _.reduce(eventsRes.events, (max: number, event: zulip.Event) => {
                 switch (event.type) {
                   case 'message':
                     // Only ingest messages from other users
@@ -348,7 +283,7 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
     return bot;
   });
 
-  controller.middleware.spawn.use((bot: ZulipBot, next: () => void) => {
+  controller.middleware.spawn.use((bot: zulipbot.Bot, next: () => void) => {
     bot.zulip.then(z => {
       z.users.me.getProfile().then(profile => {
         if (profile.result === 'success') {
@@ -360,7 +295,7 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
     });
   });
 
-  controller.middleware.normalize.use((bot: ZulipBot, message: ZulipMessage, next: () => void) => {
+  controller.middleware.normalize.use((bot: zulipbot.Bot, message: zulipbot.Message, next: () => void) => {
     switch (message.type) {
       case 'stream':
 
@@ -412,7 +347,7 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): 
     next();
   });
 
-  controller.middleware.format.use((bot: ZulipBot, message: ZulipMessage, platformMessage: ZulipMessage, next: () => void) => {
+  controller.middleware.format.use((bot: zulipbot.Bot, message: zulipbot.Message, platformMessage: zulipbot.Message, next: () => void) => {
     if (message.channel) {
       var channel = JSON.parse(message.channel);
       // If the channel is a JSON array, then map to a private message

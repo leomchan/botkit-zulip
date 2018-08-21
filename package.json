@@ -3,6 +3,7 @@
   "version": "0.1.2",
   "description": "BotKit Zulip connector",
   "main": "dist/main.js",
+  "types": "dist/main.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "testbot": "tsc; node testbot/testbot.js"
