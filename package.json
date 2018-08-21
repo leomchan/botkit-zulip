@@ -1,6 +1,6 @@
 {
   "name": "botkit-zulip",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "BotKit Zulip connector",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
