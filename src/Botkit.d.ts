@@ -1,7 +1,7 @@
 import * as Botkit from "botkit";
 
 declare module 'botkit' {
-  interface CoreConfiguration extends Configuration {
+  export interface CoreConfiguration extends Configuration {
 
   }
 

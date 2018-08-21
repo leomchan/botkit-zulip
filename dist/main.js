@@ -1,5 +1,4 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
 const zulip = require('zulip-js');
 const _ = require('underscore');
 const escapeStringRegexp = require('escape-string-regexp');
@@ -295,10 +294,6 @@ function zulipbot(botkit, controllerConfig) {
                 console.warn(message);
                 platformMessage = message;
             }
-            console.log('message');
-            console.log(message);
-            console.log('transformed');
-            console.log(platformMessage);
         }
         else {
             console.warn('Message does not have a channel');
@@ -308,4 +303,4 @@ function zulipbot(botkit, controllerConfig) {
     });
     return controller;
 }
-exports.zulipbot = zulipbot;
+module.exports = zulipbot;

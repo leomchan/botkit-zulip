@@ -66,7 +66,7 @@ interface ZulipConnection {
   }
 }
 
-export interface ZulipConfiguration extends Botkit.CoreConfiguration {
+interface ZulipConfiguration extends Botkit.CoreConfiguration {
   zulip?: {
     username?: string;
     apiKey?: string;
@@ -74,7 +74,7 @@ export interface ZulipConfiguration extends Botkit.CoreConfiguration {
   };
 }
 
-export interface ZulipMessage extends Botkit.Message {
+interface ZulipMessage extends Botkit.Message {
   zulipType: string;
   type: string;
   subject?: string;
@@ -104,7 +104,7 @@ interface ZulipController extends Botkit.CoreController<ZulipConfiguration, Zuli
   readonly excludedEvents: string[];
 }
 
-export function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): Botkit.Controller<ZulipConfiguration, ZulipMessage, Botkit.Bot<ZulipConfiguration, ZulipMessage>> {
+function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): Botkit.Controller<ZulipConfiguration, ZulipMessage, Botkit.Bot<ZulipConfiguration, ZulipMessage>> {
 
   if (!controllerConfig) {
     controllerConfig = {};
@@ -439,3 +439,5 @@ export function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfigura
 
   return controller;
 }
+
+export = zulipbot;
