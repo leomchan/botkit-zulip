@@ -59,14 +59,14 @@ interface ZulipConnection {
     retrieve(params: ZulipRetrieveEventsParams): Promise<ZulipRetrieveEventsResponse>
   }
 
-  readonly user: {
+  readonly users: {
     readonly me: {
       getProfile(): Promise<ZulipProfileResponse>
     }
   }
 }
 
-interface ZulipConfiguration extends Botkit.CoreConfiguration {
+export interface ZulipConfiguration extends Botkit.CoreConfiguration {
   zulip?: {
     username?: string;
     apiKey?: string;
@@ -74,7 +74,7 @@ interface ZulipConfiguration extends Botkit.CoreConfiguration {
   };
 }
 
-interface ZulipMessage extends Botkit.Message {
+export interface ZulipMessage extends Botkit.Message {
   zulipType: string;
   type: string;
   subject?: string;
@@ -104,7 +104,7 @@ interface ZulipController extends Botkit.CoreController<ZulipConfiguration, Zuli
   readonly excludedEvents: string[];
 }
 
-function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfiguration) {
+export function zulipbot(botkit: typeof Botkit, controllerConfig: ZulipConfiguration): Botkit.Controller<ZulipConfiguration, ZulipMessage, Botkit.Bot<ZulipConfiguration, ZulipMessage>> {
 
   if (!controllerConfig) {
     controllerConfig = {};
@@ -192,7 +192,7 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
         if (typeof(resp) === 'string') {
           content = resp;
         } else {
-          content = resp.content;
+          content = resp.text || resp.content;
         }
   
         responseMessage = {
@@ -201,12 +201,13 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
           user: src.user,
           channel: src.channel,
           content: content,
+          text: content,
           to: '',
           sender_email: src.sender_email,
           display_recipient: src.display_recipient
         }
   
-        bot.say(resp, cb || (() => {}));
+        bot.say(responseMessage, cb || (() => {}));
       },
 
       // mechanism to look for ongoing conversations
@@ -232,7 +233,7 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
       },
 
       replyWithQuestion: (message, question, cb) => {
-        controller.startConversation(message, (convo: Botkit.Conversation<ZulipMessage>) {
+        controller.startConversation(message, (convo: Botkit.Conversation<ZulipMessage>) => {
           convo.ask(question, cb);
         });
       }
@@ -349,7 +350,7 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
 
   controller.middleware.spawn.use((bot: ZulipBot, next: () => void) => {
     bot.zulip.then(z => {
-      z.user.me.getProfile().then(profile => {
+      z.users.me.getProfile().then(profile => {
         if (profile.result === 'success') {
           bot.identity.name = profile.full_name;
           bot.identity.emails = [profile.email];
@@ -418,12 +419,12 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
       if (Array.isArray(channel)) {
         platformMessage.type = 'private';
         platformMessage.to = message.channel;
-        platformMessage.content = message.text || '';
+        platformMessage.content = message.text || message.content || '';
       } else if (channel.stream && channel.subject) {
         platformMessage.type = 'stream';
         platformMessage.to = channel.stream;
         platformMessage.subject = channel.subject;
-        platformMessage.content = message.text || '';
+        platformMessage.content = message.text || message.content || '';
       } else {
         console.warn('Unable to format message');
         console.warn(message);
@@ -438,5 +439,3 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
 
   return controller;
 }
-
-export = buildController;
