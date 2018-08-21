@@ -3,27 +3,23 @@ const Botkit = require('botkit');
 
 // In a production bot, this should be:
 // var controller = require('botkit-zulip')(Botkit, {});
-var controller = require('../index')(Botkit, {});
+var controller = require('../dist/main')(Botkit, {});
 
 controller.spawn({});
 
-var studioBotIdentity = controller.studio.identify();
-
 if (controller.config.studio_token) {
   controller.on(['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
-    studioBotIdentity.then(identity => {
-      controller.studio.runTrigger(bot, message.text, message.user, message.channel, message).then(convo => {
-        if (!convo) {
-          console.warn('No conversation was matched.');
-        } else {
-          convo.setVar('current_time', new Date());
-          convo.setVar('bot', identity);
-        }
-      }).catch(err => {
-        console.err(err);
-        bot.reply(message, 'Error connecting to Botkit Studio.');
-      });  
-    });
+    controller.studio.runTrigger(bot, message.text, message.user, message.channel, message).then(convo => {
+      if (!convo) {
+        console.warn('No conversation was matched.');
+      } else {
+        convo.setVar('current_time', new Date());
+        convo.setVar('bot', bot.identity);
+      }
+    }).catch(err => {
+      console.err(err);
+      bot.reply(message, 'Error connecting to Botkit Studio.');
+    });  
   });  
 
   var normalizedPath = require('path').join(__dirname, 'skills');
