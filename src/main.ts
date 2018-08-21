@@ -3,6 +3,69 @@ const _ = require('underscore');
 const escapeStringRegexp = require('escape-string-regexp');
 import * as Botkit from "botkit";
 
+interface ZulipRegisterQueueParams {
+  apply_markdown?: boolean,
+  client_gravatar?: boolean,
+  event_types?: string[],
+  all_public_streams?: boolean,
+  include_subscribers?: boolean,
+  fetch_event_types?: string[],
+  narrow?: string[]
+}
+
+interface ZulipRegisterQueueResponse {
+  queue_id?: string,
+  last_event_id?: number,
+  result: string
+}
+
+interface ZulipRetrieveEventsParams {
+  queue_id?: string,
+  last_event_id?: number,
+  dont_block?: boolean
+}
+
+interface ZulipEvent {
+  id: number,
+  message: {
+    is_me_message?: boolean,
+    sender_email: string
+  },
+  type: string
+}
+
+interface ZulipRetrieveEventsResponse {
+  events?: ZulipEvent[];
+  result: string;
+}
+
+interface ZulipProfileResponse {
+  email: string,
+  full_name: string,
+  short_name: string,
+  result: string
+}
+
+interface ZulipConnection {
+  readonly messages: {
+    send: (message: ZulipMessage) => Promise<{result: string}>
+  }
+
+  readonly queues: {
+    register(params: ZulipRegisterQueueParams): Promise<ZulipRegisterQueueResponse>
+  }
+
+  readonly events: {
+    retrieve(params: ZulipRetrieveEventsParams): Promise<ZulipRetrieveEventsResponse>
+  }
+
+  readonly user: {
+    readonly me: {
+      getProfile(): Promise<ZulipProfileResponse>
+    }
+  }
+}
+
 interface ZulipConfiguration extends Botkit.CoreConfiguration {
   zulip?: {
     username?: string;
@@ -11,12 +74,34 @@ interface ZulipConfiguration extends Botkit.CoreConfiguration {
   };
 }
 
-interface ZulipBot extends Botkit.CoreBot {
-  readonly type: string;
+interface ZulipMessage extends Botkit.Message {
+  zulipType: string;
+  type: string;
+  subject?: string;
+  to: string;
+  content: string;
+  sender_email: string;
+  display_recipient: string;
 }
 
-interface ZulipController extends Botkit.CoreController {
+interface ZulipBot extends Botkit.Bot<ZulipConfiguration, ZulipMessage> {
+  readonly type: string;
+  readonly config: ZulipConfiguration;
+  readonly zulip: Promise<ZulipConnection>
+}
 
+interface Utterances {
+  readonly yes: RegExp;
+  readonly no: RegExp;
+  readonly quit: RegExp;
+}
+
+interface ZulipController extends Botkit.CoreController<ZulipConfiguration, ZulipMessage, ZulipBot> {
+  readonly utterances: Utterances;
+  readonly tasks: {
+    convos: Botkit.Conversation<ZulipMessage>[]
+  }[];
+  readonly excludedEvents: string[];
 }
 
 function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfiguration) {
@@ -48,92 +133,135 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
   /**
    * Create zulip connection. At some point pass in config as well?
    */
-  function createZulip(botConfig: ZulipConfiguration) {
+  function createZulip(botConfig: ZulipConfiguration): Promise<ZulipConnection> {
     return zulip(botConfig.zulip);
   }
    
-  controller.defineBot(function(botkit: Botkit.Controller<Botkit.Configuration, Botkit.Message, Botkit.Bot<Botkit.Configuration, Botkit.Message>>, config) {
+  controller.defineBot(function(botkit: ZulipController, config: ZulipConfiguration) {
     if (!config) {
       config = {};
     }
 
     addMissingBotConfigEntries(config);
 
-    var botZulip = createZulip(config);
+    let zulipConnectionPromise = createZulip(config);
 
-    var bot: Botkit.CoreBot = {
+    let bot: ZulipBot = {
       type: 'zulip',
       botkit: botkit,
       config: config || {},
       utterances: botkit.utterances,
-      zulip: botZulip,
-      profile: botZulip.then(z => z.users.me.getProfile())
-    };
-
-    // send a message
-    bot.send = function(message, cb) {
-      if (message.to) {
-        bot.zulip.then(z => {
-          z.messages.send(message).then(res => {
-            if (res.result === 'error') {
-              console.error(res);
-            }
-
-            cb();
+      zulip: zulipConnectionPromise,
+      identity: {
+        name: 'N/A',
+        emails: []
+      },
+      // Placeholder. CoreBot will redefine say later.
+      say: (message: string | ZulipMessage, cb?: (err: Error, res?: any) => void) => {},
+      // Placeholder. CoreBot will redefine createConversation later.
+      createConversation: (message: ZulipMessage, cb: (err: Error, convo: Botkit.Conversation<ZulipMessage>) => void) => {},
+      // Placeholder. CoreBot will redefine startConversation later.
+      startConversation: (message: ZulipMessage, cb: (err: Error, convo: Botkit.Conversation<ZulipMessage>) => void) => {},
+      send: (message: ZulipMessage, cb?: (err: Error, res?: any) => void) => {
+        if (message.to) {
+          bot.zulip.then(z => {
+            z.messages.send(message).then(sendResponse => {
+              if (sendResponse.result === 'error') {
+                console.error(sendResponse);
+              }
+  
+              if (cb) {
+                (<() => void>cb)();
+              }
+            });
           });
-        });
-      } else {
-        console.warn('Cannot send a message without a recipient.');
-        console.warn(message);
-        cb();
-      }
-    };
+        } else {
+          let str: string = 'Message is missing the "to" field';
+          console.warn(str);
+          console.warn(message);
+          if (cb) {
+            cb(new Error(str));
+          }
+        }  
+      },
+      // construct a reply
+      reply: (src: ZulipMessage, resp: string | ZulipMessage, cb?: (err: Error, res: any) => void) => {
+        let responseMessage: ZulipMessage;
+        let content: string;
 
-    // construct a reply
-    bot.reply = function (src, resp, cb) {
-      if (typeof(resp) === 'string') {
-        resp = {
-          text: resp
-        };
-      }
+        if (typeof(resp) === 'string') {
+          content = resp;
+        } else {
+          content = resp.content;
+        }
+  
+        responseMessage = {
+          zulipType: src.zulipType,
+          type: src.type,
+          user: src.user,
+          channel: src.channel,
+          content: content,
+          to: '',
+          sender_email: src.sender_email,
+          display_recipient: src.display_recipient
+        }
+  
+        bot.say(resp, cb || (() => {}));
+      },
 
-      resp.type = src.type;
-      resp.user = src.user;
-      resp.channel = src.channel;
-
-      bot.say(resp, cb || (() => {}));
-    };
-
-    // mechanism to look for ongoing conversations
-    bot.findConversation = function(message, cb) {
-      for (var t = 0; t < botkit.tasks.length; t++) {
-        for (var c = 0; c < botkit.tasks[t].convos.length; c++) {
-          if (
-            botkit.tasks[t].convos[c].isActive() &&
-            botkit.tasks[t].convos[c].source_message.user == message.user &&
-            botkit.excludedEvents.indexOf(message.type) == -1 // this type of message should not be included
-          ) {
-            cb(botkit.tasks[t].convos[c]);
-            return;
+      // mechanism to look for ongoing conversations
+      findConversation: (message: ZulipMessage, cb?: (convo?: Botkit.Conversation<ZulipMessage> | undefined) => void) => {
+        for (var t = 0; t < botkit.tasks.length; t++) {
+          for (var c = 0; c < botkit.tasks[t].convos.length; c++) {
+            if (
+              botkit.tasks[t].convos[c].isActive() &&
+              botkit.tasks[t].convos[c].source_message.user == message.user &&
+              botkit.excludedEvents.indexOf(message.type) == -1 // this type of message should not be included
+            ) {
+              if (cb) {
+                cb(botkit.tasks[t].convos[c]);
+              }
+              return;
+            }
           }
         }
+
+        if (cb) {
+          cb();  
+        }
+      },
+
+      replyWithQuestion: (message, question, cb) => {
+        controller.startConversation(message, (convo: Botkit.Conversation<ZulipMessage>) {
+          convo.ask(question, cb);
+        });
       }
-      cb();
+
     };
 
     // Listen for messages on subscribed streams
     bot.zulip.then(z => {
 
-      function retrieveEvents(initialState) {
-        return new Promise((resolve, reject) => {
-          if (initialState && initialState.queue_id) {
+      interface RetrieveEventsState {
+        queueId?: string;
+        lastEventId?: number;
+        created?: number;
+        failed?: number;
+      };
+
+      function retrieveEvents(initialState: RetrieveEventsState): Promise<RetrieveEventsState> {
+        return new Promise<RetrieveEventsState>((resolve, reject) => {
+          if (initialState && initialState.queueId) {
             resolve(initialState);
           } else {
             z.queues.register({event_types: ['message']})
               .then(res => {
                 if (res.queue_id && res.result === 'success') {
-                  res.created = Date.now();
-                  resolve(res);  
+                  resolve({
+                    queueId: res.queue_id,
+                    lastEventId: res.last_event_id,
+                    created: Date.now()
+                  });  
                 } else {
                   reject(res);
                 }
@@ -142,16 +270,16 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
           }
         }).then(state => {
           return z.events.retrieve({
-            queue_id: state.queue_id,
-            last_event_id: state.last_event_id,
+            queue_id: state.queueId,
+            last_event_id: state.lastEventId,
             dont_block: false
           }).then(eventsRes => {
             if (eventsRes.result === 'success') {
-              var maxEventId = _.reduce(eventsRes.events, (max, event) => {
+              let maxEventId: number = _.reduce(eventsRes.events, (max: number, event: ZulipEvent) => {
                 switch (event.type) {
                   case 'message':
                     // Only ingest messages from other users
-                    if (controller.tickInterval && !event.message.is_me_message && 
+                    if (controller.tickInterval && !event.message.is_me_message && config.zulip && config.zulip.username &&
                       event.message.sender_email.trim().toLowerCase() != config.zulip.username.trim().toLowerCase()) {
                       controller.ingest(bot, event.message, event.id);
                     }
@@ -169,11 +297,11 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
                 } else {
                   return max;
                 }
-              }, state.last_event_id);
+              }, state.lastEventId);
     
               return retrieveEvents({
-                queue_id: state.queue_id,
-                last_event_id: maxEventId,
+                queueId: state.queueId,
+                lastEventId: maxEventId,
                 created: state.created
               });                  
             } else {
@@ -193,10 +321,10 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
             let timeSinceInitialFailure = Date.now() - initialState.failed;
             let delay = Math.min(Math.max(5000, Math.round(timeSinceInitialFailure / 5000) * 5000), 30000);
 
-            return new Promise((resolve, reject) => {
+            return new Promise<RetrieveEventsState>((resolve, reject) => {
               console.log('Reconnecting in %d ms…', delay);
               setTimeout(() => {
-                retrieveEvents(initialState).then((x) => {
+                retrieveEvents(initialState).then(x => {
                   resolve(x);
                 }).catch(err => {
                   reject(err);
@@ -219,74 +347,91 @@ function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfigura
     return bot;
   });
 
-  controller.middleware.normalize.use(function (bot, message, next) {
-    bot.profile.then(p => {
-      switch (message.raw_message.type) {
-        case 'stream':
-
-          // Is this a direct mention, mention, or ambient?
-          var escapedMention = escapeStringRegexp('@**' + p.full_name + '**');
-          var escapedDirectMention = '^' + escapedMention;
-          var directMentionRegex = new RegExp(escapedDirectMention);
-          message.text = message.raw_message.content;
-          
-          if (directMentionRegex.test(message.text)) {
-            message.type = 'direct_mention';
-          } else {
-            var mentionRegex = new RegExp(escapedMention);
-            if (mentionRegex.test(message.text)) {
-              message.type = 'mention';
-            } else {
-              message.type = 'ambient';
-            }
-          }
-          
-          message.user = message.raw_message.sender_email;
-  
-          // Map Zulip stream name + topic to a BotKit channel.
-          // Encode as JSON, because there doesn't appear to be too many restrictions on what characters
-          // a stream name or topic can contain
-          message.channel = JSON.stringify({
-            stream: message.raw_message.display_recipient,
-            subject: message.raw_message.subject
-          });
-          break;
-        
-        case 'private':
-          message.type = 'direct_message';
-          message.user = message.raw_message.sender_email;
-          message.text = message.raw_message.content;
-
-          // For private messages, map sorted json encoding of emails as the channel
-          var emails = _.map(message.raw_message.display_recipient, (recipient) => recipient.email).sort();
-          message.channel = JSON.stringify(emails);
-          break;
-
-        default:
-          console.warn('Unsupported zulip event type %s', message.raw_message.type);
-          console.warn(message.raw_message);
-          break;
-      }  
-    }).then(() => next());
+  controller.middleware.spawn.use((bot: ZulipBot, next: () => void) => {
+    bot.zulip.then(z => {
+      z.user.me.getProfile().then(profile => {
+        if (profile.result === 'success') {
+          bot.identity.name = profile.full_name;
+          bot.identity.emails = [profile.email];
+        }
+        next();
+      });
+    });
   });
 
-  controller.middleware.format.use(function(bot, message, platformMessage, next) {
-    var channel = JSON.parse(message.channel);
-    // If the channel is a JSON array, then map to a private message
-    if (Array.isArray(channel)) {
-      platformMessage.type = 'private';
-      platformMessage.to = message.channel;
-      platformMessage.content = message.text;
-      platformMessage.subject = '';
-    } else if (channel.stream && channel.subject) {
-      platformMessage.type = 'stream';
-      platformMessage.to = channel.stream;
-      platformMessage.subject = channel.subject;
-      platformMessage.content = message.text;
+  controller.middleware.normalize.use((bot: ZulipBot, message: ZulipMessage, next: () => void) => {
+    switch (message.type) {
+      case 'stream':
+
+        // Is this a direct mention, mention, or ambient?
+        var escapedMention = escapeStringRegexp('@**' + bot.identity.name + '**');
+        var escapedDirectMention = '^' + escapedMention;
+        var directMentionRegex = new RegExp(escapedDirectMention);
+        message.text = message.content;
+        message.zulipType = message.type;
+
+        if (directMentionRegex.test(message.text)) {
+          message.type = 'direct_mention';
+        } else {
+          var mentionRegex = new RegExp(escapedMention);
+          if (mentionRegex.test(message.text)) {
+            message.type = 'mention';
+          } else {
+            message.type = 'ambient';
+          }
+        }
+        
+        message.user = message.sender_email;
+
+        // Map Zulip stream name + topic to a BotKit channel.
+        // Encode as JSON, because there doesn't appear to be too many restrictions on what characters
+        // a stream name or topic can contain
+        message.channel = JSON.stringify({
+          stream: message.display_recipient,
+          subject: message.subject
+        });
+        break;
+      
+      case 'private':
+        message.type = 'direct_message';
+        message.user = message.sender_email;
+        message.text = message.content;
+
+        // For private messages, map sorted json encoding of emails as the channel
+        var emails = _.map(message.display_recipient, (recipient: {email: string}) => recipient.email).sort();
+        message.channel = JSON.stringify(emails);
+        break;
+
+      default:
+        console.warn('Unsupported zulip event type %s', message.type);
+        console.warn(message);
+        break;
+    }
+
+    next();
+  });
+
+  controller.middleware.format.use((bot: ZulipBot, message: ZulipMessage, platformMessage: ZulipMessage, next: () => void) => {
+    if (message.channel) {
+      var channel = JSON.parse(message.channel);
+      // If the channel is a JSON array, then map to a private message
+      if (Array.isArray(channel)) {
+        platformMessage.type = 'private';
+        platformMessage.to = message.channel;
+        platformMessage.content = message.text || '';
+      } else if (channel.stream && channel.subject) {
+        platformMessage.type = 'stream';
+        platformMessage.to = channel.stream;
+        platformMessage.subject = channel.subject;
+        platformMessage.content = message.text || '';
+      } else {
+        console.warn('Unable to format message');
+        console.warn(message);
+        platformMessage = message;
+      }  
     } else {
-      console.warn('Unable to format message');
+      console.warn('Message does not have a channel');
       console.warn(message);
-      platformMessage = message;
     }
     next();
   });
