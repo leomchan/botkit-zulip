@@ -1,4 +1,6 @@
 "use strict";
+/// <reference path="Botkit.d.ts"/>
+/// <reference path="zulip-js.d.ts"/>
 const zulip = require("zulip-js");
 const _ = require('underscore');
 const escapeStringRegexp = require('escape-string-regexp');

@@ -1,3 +1,5 @@
+/// <reference path="../src/Botkit.d.ts" />
+/// <reference path="../src/zulip-js.d.ts" />
 import zulip = require('zulip-js');
 import * as Botkit from "botkit";
 declare namespace zulipbot {

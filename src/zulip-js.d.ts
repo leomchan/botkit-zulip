@@ -1,5 +1,3 @@
-/// <reference types="typescript" />
-
 declare module 'zulip-js' {
 
   declare namespace zulip {

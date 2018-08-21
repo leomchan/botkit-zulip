@@ -1,3 +1,5 @@
+/// <reference path="Botkit.d.ts"/>
+/// <reference path="zulip-js.d.ts"/>
 import zulip = require('zulip-js');
 const _ = require('underscore');
 const escapeStringRegexp = require('escape-string-regexp');
@@ -34,7 +36,7 @@ namespace zulipbot {
     readonly tasks: {
       convos: Botkit.Conversation<Message>[]
     }[];
-    
+
     readonly excludedEvents: string[];
   }
 }
