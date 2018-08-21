@@ -114,8 +114,12 @@ module.exports = function(Botkit, controllerConfig) {
           } else {
             z.queues.register({event_types: ['message']})
               .then(res => {
-                res.created = Date.now();
-                resolve(res);
+                if (res.queue_id && res.result === 'success') {
+                  res.created = Date.now();
+                  resolve(res);  
+                } else {
+                  reject(res);
+                }
               })
               .catch(err => reject(err));
           }
@@ -125,41 +129,45 @@ module.exports = function(Botkit, controllerConfig) {
             last_event_id: state.last_event_id,
             dont_block: false
           }).then(eventsRes => {
-            var maxEventId = _.reduce(eventsRes.events, (max, event) => {
-              switch (event.type) {
-                case 'message':
-                  // Only ingest messages from other users
-                  if (controller.tickInterval && !event.message.is_me_message && 
-                    event.message.sender_email.trim().toLowerCase() != config.zulip.username.trim().toLowerCase()) {
-                    controller.ingest(bot, event.message, event.id);
-                  }
-                  break;
-                case 'heartbeat':
-                  // Ignore heartbeats
-                  break;
-                default:
-                  // Received an unexpected event
-                  console.warn(event);
-              }
-  
-              if (event.id > max) {
-                return event.id;
-              } else {
-                return max;
-              }
-            }, state.last_event_id);
-  
-            return retrieveEvents({
-              queue_id: state.queue_id,
-              last_event_id: maxEventId,
-              created: state.created
-            });  
+            if (eventsRes.result === 'success') {
+              var maxEventId = _.reduce(eventsRes.events, (max, event) => {
+                switch (event.type) {
+                  case 'message':
+                    // Only ingest messages from other users
+                    if (controller.tickInterval && !event.message.is_me_message && 
+                      event.message.sender_email.trim().toLowerCase() != config.zulip.username.trim().toLowerCase()) {
+                      controller.ingest(bot, event.message, event.id);
+                    }
+                    break;
+                  case 'heartbeat':
+                    // Ignore heartbeats
+                    break;
+                  default:
+                    // Received an unexpected event
+                    console.warn(event);
+                }
+    
+                if (event.id > max) {
+                  return event.id;
+                } else {
+                  return max;
+                }
+              }, state.last_event_id);
+    
+              return retrieveEvents({
+                queue_id: state.queue_id,
+                last_event_id: maxEventId,
+                created: state.created
+              });                  
+            } else {
+              return Promise.reject(eventsRes);
+            }
           });
         }).catch(err => {
           console.warn('Failed to retrieve events.');
           console.log(err);
 
-          if (initialState && initialState.created) {
+          if (initialState && initialState.created && !initialState.failed) {
             let elapsed = Date.now() - initialState.created;
             console.warn('Failure occurred after %d ms after queue was created.', elapsed);
           }
@@ -169,7 +177,7 @@ module.exports = function(Botkit, controllerConfig) {
             let delay = Math.min(Math.max(5000, Math.round(timeSinceInitialFailure / 5000) * 5000), 30000);
 
             return new Promise((resolve, reject) => {
-              console.log('Reconnecting after %d ms…', delay);
+              console.log('Reconnecting in %d ms…', delay);
               setTimeout(() => {
                 retrieveEvents(initialState).then((x) => {
                   resolve(x);
