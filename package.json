@@ -2,7 +2,7 @@
   "name": "botkit-zulip",
   "version": "0.1.2",
   "description": "BotKit Zulip connector",
-  "main": "index.js",
+  "main": "dist/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "testbot": "node testbot/testbot.js"
@@ -22,12 +22,12 @@
   },
   "homepage": "https://github.com/leomchan/botkit-zulip#readme",
   "dependencies": {
+    "botkit": "^0.6.16",
     "escape-string-regexp": "^1.0.5",
     "underscore": "^1.9.1",
     "zulip-js": "^2.0.4"
   },
   "devDependencies": {
-    "botkit": "^0.6.16",
     "dotenv": "^6.0.0",
     "eslint": "^5.4.0"
   }

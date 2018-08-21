@@ -1,8 +1,25 @@
 const zulip = require('zulip-js');
 const _ = require('underscore');
 const escapeStringRegexp = require('escape-string-regexp');
+import * as Botkit from "botkit";
 
-module.exports = function(Botkit, controllerConfig) {
+interface ZulipConfiguration extends Botkit.CoreConfiguration {
+  zulip?: {
+    username?: string;
+    apiKey?: string;
+    realm?: string;  
+  };
+}
+
+interface ZulipBot extends Botkit.CoreBot {
+  readonly type: string;
+}
+
+interface ZulipController extends Botkit.CoreController {
+
+}
+
+function buildController(botkit: typeof Botkit, controllerConfig: ZulipConfiguration) {
 
   if (!controllerConfig) {
     controllerConfig = {};
@@ -14,7 +31,7 @@ module.exports = function(Botkit, controllerConfig) {
 
   var controller = Botkit.core(controllerConfig);
 
-  function addMissingBotConfigEntries(botConfig) {
+  function addMissingBotConfigEntries(botConfig: ZulipConfiguration) {
     if (!botConfig.zulip) {
       botConfig.zulip = {
         username: process.env.BOTKIT_ZULIP_BOT,
@@ -31,11 +48,11 @@ module.exports = function(Botkit, controllerConfig) {
   /**
    * Create zulip connection. At some point pass in config as well?
    */
-  function createZulip(botConfig) {
+  function createZulip(botConfig: ZulipConfiguration) {
     return zulip(botConfig.zulip);
   }
    
-  controller.defineBot(function(botkit, config) {
+  controller.defineBot(function(botkit: Botkit.Controller<Botkit.Configuration, Botkit.Message, Botkit.Bot<Botkit.Configuration, Botkit.Message>>, config) {
     if (!config) {
       config = {};
     }
@@ -44,7 +61,7 @@ module.exports = function(Botkit, controllerConfig) {
 
     var botZulip = createZulip(config);
 
-    var bot = {
+    var bot: Botkit.CoreBot = {
       type: 'zulip',
       botkit: botkit,
       config: config || {},
@@ -275,4 +292,6 @@ module.exports = function(Botkit, controllerConfig) {
   });
 
   return controller;
-};
+}
+
+export = buildController;
