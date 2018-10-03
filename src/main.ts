@@ -71,7 +71,12 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: zulipbot.Configuratio
    * Create zulip connection. At some point pass in config as well?
    */
   function createZulip(botConfig: zulipbot.Configuration): Promise<zulip.Zulip> {
-    return zulip(botConfig.zulip);
+    let zulip_conf = botConfig.zulip;
+
+    if (!zulip_conf || !zulip_conf.username || !zulip_conf.apiKey) {
+        throw Error('you must supply configuration env vars: BOTKIT_ZULIP_BOT, BOTKIT_ZULIP_API_KEY');
+    }
+    return zulip(zulip_conf);
   }
    
   controller.defineBot(function(botkit: zulipbot.Controller, config: zulipbot.Configuration) {
