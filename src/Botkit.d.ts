@@ -1,6 +1,10 @@
 import * as Botkit from "botkit";
 
 declare module 'botkit' {
+  interface Identity {
+    shortName?: string;
+  }
+
   export interface CoreConfiguration extends Configuration {
 
   }

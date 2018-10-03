@@ -12,7 +12,7 @@ function zulipbot(botkit, controllerConfig) {
     if (!controllerConfig.studio_token) {
         controllerConfig.studio_token = process.env.BOTKIT_STUDIO_TOKEN || process.env.studio_token;
     }
-    var controller = Botkit.core(controllerConfig);
+    let controller = Botkit.core(controllerConfig);
     function addMissingBotConfigEntries(botConfig) {
         if (!botConfig.zulip) {
             botConfig.zulip = {
@@ -225,6 +225,7 @@ function zulipbot(botkit, controllerConfig) {
             z.users.me.getProfile().then(profile => {
                 if (profile.result === 'success') {
                     bot.identity.name = profile.full_name;
+                    bot.identity.shortName = profile.short_name;
                     bot.identity.emails = [profile.email];
                 }
                 next();
@@ -235,9 +236,9 @@ function zulipbot(botkit, controllerConfig) {
         switch (message.type) {
             case 'stream':
                 // Is this a direct mention, mention, or ambient?
-                var escapedMention = escapeStringRegexp('@**' + bot.identity.name + '**');
-                var escapedDirectMention = '^' + escapedMention;
-                var directMentionRegex = new RegExp(escapedDirectMention);
+                let escapedMention = escapeStringRegexp('@**' + bot.identity.name + '**');
+                let escapedDirectMention = '^' + escapedMention;
+                let directMentionRegex = new RegExp(escapedDirectMention);
                 message.text = message.content;
                 message.zulipType = message.type;
                 if (directMentionRegex.test(message.text)) {

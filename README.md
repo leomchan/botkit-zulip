@@ -54,5 +54,12 @@ and then run `npm run testbot`
 
 If you have `BOTKIT_STUDIO_TOKEN` set, you will also be able to try the starter BotKit Studio scripts that are available to your account. (e.g. *hello*, *goodbye*, *tutorial*, etc.)
 
+## Building the connector
+1. Install *nodejs* and *npm*
+2. Clone git repository.
+3. Run `npm install`.
+4. Run `npm run build`.
+
+
 
 
