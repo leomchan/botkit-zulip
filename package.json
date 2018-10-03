@@ -30,7 +30,9 @@
     "zulip-js": "^2.0.4"
   },
   "devDependencies": {
+    "@types/underscore": "^1.8.9",
     "dotenv": "^6.0.0",
-    "rimraf": "^2.6.2"
+    "rimraf": "^2.6.2",
+    "typescript": "^3.1.1"
   }
 }
