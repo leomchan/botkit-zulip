@@ -28,3 +28,6 @@ notes are from memory, apologies if I missed a step.)
     <go to stream>
     <say `@**Bot Kit** test`>
     <see the response>
+
+    <say `@**Bot Kit** buttons`>
+    <Pick a fruit by hitting a button!>
