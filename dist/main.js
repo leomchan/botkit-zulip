@@ -83,11 +83,14 @@ function zulipbot(botkit, controllerConfig) {
             reply: (src, resp, cb) => {
                 let responseMessage;
                 let content;
+                let widget_content;
                 if (typeof (resp) === 'string') {
                     content = resp;
+                    widget_content = undefined;
                 }
                 else {
                     content = resp.text || resp.content;
+                    widget_content = resp.widget_content;
                 }
                 responseMessage = {
                     zulipType: src.zulipType,
@@ -100,6 +103,9 @@ function zulipbot(botkit, controllerConfig) {
                     sender_email: src.sender_email,
                     display_recipient: src.display_recipient
                 };
+                if (widget_content) {
+                    responseMessage.widget_content = widget_content;
+                }
                 bot.say(responseMessage, cb || (() => { }));
             },
             // mechanism to look for ongoing conversations
@@ -305,6 +311,9 @@ function zulipbot(botkit, controllerConfig) {
         else {
             console.warn('Message does not have a channel');
             console.warn(message);
+        }
+        if (message.widget_content) {
+            platformMessage.widget_content = message.widget_content;
         }
         next();
     });
