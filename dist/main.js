@@ -29,7 +29,11 @@ function zulipbot(botkit, controllerConfig) {
      * Create zulip connection. At some point pass in config as well?
      */
     function createZulip(botConfig) {
-        return zulip(botConfig.zulip);
+        let zulip_conf = botConfig.zulip;
+        if (!zulip_conf || !zulip_conf.username || !zulip_conf.apiKey) {
+            throw Error('you must supply configuration env vars: BOTKIT_ZULIP_BOT, BOTKIT_ZULIP_API_KEY');
+        }
+        return zulip(zulip_conf);
     }
     controller.defineBot(function (botkit, config) {
         if (!config) {
@@ -79,11 +83,14 @@ function zulipbot(botkit, controllerConfig) {
             reply: (src, resp, cb) => {
                 let responseMessage;
                 let content;
+                let widget_content;
                 if (typeof (resp) === 'string') {
                     content = resp;
+                    widget_content = undefined;
                 }
                 else {
                     content = resp.text || resp.content;
+                    widget_content = resp.widget_content;
                 }
                 responseMessage = {
                     zulipType: src.zulipType,
@@ -96,6 +103,9 @@ function zulipbot(botkit, controllerConfig) {
                     sender_email: src.sender_email,
                     display_recipient: src.display_recipient
                 };
+                if (widget_content) {
+                    responseMessage.widget_content = widget_content;
+                }
                 bot.say(responseMessage, cb || (() => { }));
             },
             // mechanism to look for ongoing conversations
@@ -301,6 +311,9 @@ function zulipbot(botkit, controllerConfig) {
         else {
             console.warn('Message does not have a channel');
             console.warn(message);
+        }
+        if (message.widget_content) {
+            platformMessage.widget_content = message.widget_content;
         }
         next();
     });

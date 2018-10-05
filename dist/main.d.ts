@@ -10,6 +10,7 @@ declare namespace zulipbot {
         zulipType: string;
         type: string;
         subject?: string;
+        widget_content?: string;
         to: string;
         content: string;
         sender_email: string;

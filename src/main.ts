@@ -14,6 +14,7 @@ namespace zulipbot {
     zulipType: string;
     type: string;
     subject?: string;
+    widget_content?: string;
     to: string;
     content: string;
     sender_email: string;
@@ -71,7 +72,12 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: zulipbot.Configuratio
    * Create zulip connection. At some point pass in config as well?
    */
   function createZulip(botConfig: zulipbot.Configuration): Promise<zulip.Zulip> {
-    return zulip(botConfig.zulip);
+    let zulip_conf = botConfig.zulip;
+
+    if (!zulip_conf || !zulip_conf.username || !zulip_conf.apiKey) {
+        throw Error('you must supply configuration env vars: BOTKIT_ZULIP_BOT, BOTKIT_ZULIP_API_KEY');
+    }
+    return zulip(zulip_conf);
   }
    
   controller.defineBot(function(botkit: zulipbot.Controller, config: zulipbot.Configuration) {
@@ -125,11 +131,14 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: zulipbot.Configuratio
       reply: (src: zulipbot.Message, resp: string | zulipbot.Message, cb?: (err: Error, res: any) => void) => {
         let responseMessage: zulipbot.Message;
         let content: string;
+        let widget_content: string | undefined;
 
         if (typeof(resp) === 'string') {
           content = resp;
+          widget_content = undefined;
         } else {
           content = resp.text || resp.content;
+          widget_content = resp.widget_content;
         }
   
         responseMessage = {
@@ -142,6 +151,10 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: zulipbot.Configuratio
           to: '',
           sender_email: src.sender_email,
           display_recipient: src.display_recipient
+        }
+
+        if (widget_content) {
+            responseMessage.widget_content = widget_content;
         }
   
         bot.say(responseMessage, cb || (() => {}));
@@ -372,6 +385,11 @@ function zulipbot(botkit: typeof Botkit, controllerConfig: zulipbot.Configuratio
       console.warn('Message does not have a channel');
       console.warn(message);
     }
+
+    if (message.widget_content) {
+        platformMessage.widget_content = message.widget_content;
+    }
+
     next();
   });
 
