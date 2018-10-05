@@ -19,8 +19,8 @@ if (controller.config.studio_token) {
     }).catch(err => {
       console.err(err);
       bot.reply(message, 'Error connecting to Botkit Studio.');
-    });  
-  });  
+    });
+  });
 
   var normalizedPath = require('path').join(__dirname, 'skills');
   require('fs').readdirSync(normalizedPath).forEach(function(file) {
