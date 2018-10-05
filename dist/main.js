@@ -320,3 +320,4 @@ function zulipbot(botkit, controllerConfig) {
     return controller;
 }
 module.exports = zulipbot;
+//# sourceMappingURL=main.js.map
